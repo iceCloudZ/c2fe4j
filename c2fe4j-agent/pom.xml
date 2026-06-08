@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io.github.icecloudz</groupId>
+        <artifactId>c2fe4j</artifactId>
+        <version>0.1.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>c2fe4j-agent</artifactId>
+    <name>c2fe4j-agent</name>
+    <description>Agent framework: ReAct loop, Semantic Router, multi-agent orchestration</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.github.icecloudz</groupId>
+            <artifactId>c2fe4j-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.icecloudz</groupId>
+            <artifactId>c2fe4j-openai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.icecloudz</groupId>
+            <artifactId>c2fe4j-observability</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+</project>
