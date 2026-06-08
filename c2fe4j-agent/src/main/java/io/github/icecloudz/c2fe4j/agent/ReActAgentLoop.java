@@ -1,133 +1,127 @@
 package io.github.icecloudz.c2fe4j.agent;
 
-import io.github.icecloudz.c2fe4j.core.*;
-import io.github.icecloudz.c2fe4j.core.tool.*;
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
+import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.data.message.*;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.output.TokenUsage;
 import io.github.icecloudz.c2fe4j.obs.Observability;
 import io.github.icecloudz.c2fe4j.obs.Span;
-import io.github.icecloudz.c2fe4j.obs.TokenUsage;
 import io.github.icecloudz.c2fe4j.obs.Trace;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 /**
  * ReAct (Reason-Act) agent loop implementation.
  *
- * Cycle: LLM thinks → decides to use tools or finish → execute tools → feed results back.
- * Respects P3: LLM decides when to stop, not hard-coded step limits.
- * Respects P5: transparent about tool execution results.
+ * Cycle: LLM thinks -> decides to use tools or finish -> execute tools -> feed results back.
+ * P3: LLM decides when to stop. P5: transparent about tool execution results.
  */
-public class ReActAgentLoop implements AgentLoop {
+public class ReActAgentLoop {
 
     private static final Logger log = LoggerFactory.getLogger(ReActAgentLoop.class);
 
-    private final LlmClient llmClient;
-    private final Map<String, ToolExecutor> toolExecutors;
-    private final List<ToolDefinition> toolDefinitions;
-    private final DecisionGate decisionGate;
+    private final ChatModel chatModel;
+    private final List<ToolSpecification> toolSpecifications;
+    private final Function<ToolExecutionRequest, String> toolExecutor;
     private final Observability observability;
     private final int maxSteps;
 
-    public ReActAgentLoop(LlmClient llmClient,
-                          List<ToolDefinition> tools,
-                          Map<String, ToolExecutor> executors,
-                          DecisionGate decisionGate,
+    public ReActAgentLoop(ChatModel chatModel,
+                          List<ToolSpecification> tools,
+                          Function<ToolExecutionRequest, String> toolExecutor,
                           Observability observability,
                           int maxSteps) {
-        this.llmClient = llmClient;
-        this.toolDefinitions = tools;
-        this.toolExecutors = new ConcurrentHashMap<>(executors);
-        this.decisionGate = decisionGate;
+        this.chatModel = chatModel;
+        this.toolSpecifications = tools != null ? tools : List.of();
+        this.toolExecutor = toolExecutor;
         this.observability = observability;
         this.maxSteps = maxSteps;
     }
 
-    @Override
-    public AgentResult run(AgentContext context) {
-        Trace trace = observability.startTrace(context.sessionId());
+    /**
+     * Run the ReAct loop to completion.
+     */
+    public ReActResult run(List<ChatMessage> messages, String sessionId) {
+        Trace trace = observability.startTrace(sessionId);
         long startTime = System.currentTimeMillis();
 
-        try {
-            while (context.stepCount() < maxSteps) {
-                StepResult stepResult = step(context);
-                trace.addSpan(observability.startSpan(trace.traceId(), "step", "step-" + context.stepCount()));
+        List<ChatMessage> conversation = new ArrayList<>(messages);
+        int steps = 0;
+        TokenUsage totalUsage = null;
 
-                if (stepResult.finished()) {
+        try {
+            while (steps < maxSteps) {
+                steps++;
+                Span span = observability.startSpan(trace.traceId(), "llm", "step-" + steps);
+
+                ChatResponse response = chatModel.chat(conversation);
+                AiMessage aiMessage = response.aiMessage();
+
+                totalUsage = TokenUsage.sum(totalUsage, response.tokenUsage());
+
+                conversation.add(aiMessage);
+
+                // No tool calls — LLM decided to answer directly
+                if (!aiMessage.hasToolExecutionRequests()) {
                     trace.complete();
                     long latency = System.currentTimeMillis() - startTime;
-                    return new AgentResult(
-                            stepResult.response().content(),
-                            context,
-                            stepResult.response().tokenUsage(),
-                            context.stepCount(),
+                    return new ReActResult(
+                            aiMessage.text(),
+                            conversation,
+                            totalUsage,
+                            steps,
                             latency
                     );
                 }
+
+                // Execute tool calls transparently (P5)
+                for (ToolExecutionRequest request : aiMessage.toolExecutionRequests()) {
+                    Span toolSpan = observability.startChildSpan(span, "tool", request.name());
+                    String result;
+                    try {
+                        result = toolExecutor.apply(request);
+                    } catch (Exception e) {
+                        result = "Tool '%s' failed: %s".formatted(request.name(), e.getMessage());
+                    }
+                    conversation.add(ToolExecutionResultMessage.from(request, result));
+                    observability.endSpan(toolSpan, null);
+                }
             }
 
-            // Reached max steps — transparent about it (P5)
-            String msg = "Agent loop reached %d steps. Providing best answer so far.".formatted(maxSteps);
-            log.info(msg);
+            // Max steps reached
+            String lastText = getLastText(conversation);
+            log.info("ReAct loop reached {} steps", maxSteps);
             trace.complete();
-            long latency = System.currentTimeMillis() - startTime;
-            return new AgentResult(
-                    context.messages().getLast().content(),
-                    context,
-                    ChatResponse.TokenUsage.empty(),
-                    context.stepCount(),
-                    latency
-            );
+            return new ReActResult(lastText, conversation, totalUsage, steps, System.currentTimeMillis() - startTime);
+
         } catch (Exception e) {
             trace.fail(e.getMessage());
             throw e;
         }
     }
 
-    @Override
-    public StepResult step(AgentContext context) {
-        context.incrementStep();
-        Span span = observability.startSpan(null, "llm", "chat-step-" + context.stepCount());
-
-        ChatResponse response = llmClient.chat(context.messages(), toolDefinitions);
-        context.addTokens(response.tokenUsage().totalTokens());
-
-        // Check if LLM made tool calls
-        List<ToolCall> toolCalls = OpenAiToolCallParser.parse(response.content());
-
-        if (toolCalls.isEmpty() || "stop".equals(response.finishReason())) {
-            // No tool calls — LLM decided to answer directly
-            context.addMessage(ChatMessage.assistant(OpenAiToolCallParser.strip(response.content())));
-            return StepResult.done(response);
-        }
-
-        // LLM wants to use tools — execute them transparently
-        context.addMessage(ChatMessage.assistant(OpenAiToolCallParser.strip(response.content())));
-
-        for (ToolCall call : toolCalls) {
-            Span toolSpan = observability.startChildSpan(span, "tool", call.name());
-            ToolExecutor executor = toolExecutors.get(call.name());
-
-            ToolResult result;
-            if (executor == null) {
-                // P5: transparent — tell LLM the tool doesn't exist
-                result = ToolResult.error(call.id(),
-                        "Tool '%s' is not available. Available tools: %s".formatted(call.name(), toolExecutors.keySet()));
-            } else {
-                try {
-                    result = executor.execute(call);
-                } catch (Exception e) {
-                    result = ToolResult.error(call.id(),
-                            "Tool '%s' failed: %s".formatted(call.name(), e.getMessage()));
-                }
+    private String getLastText(List<ChatMessage> messages) {
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            if (messages.get(i) instanceof AiMessage ai && ai.text() != null) {
+                return ai.text();
             }
-
-            // Feed tool result back as TOOL message
-            context.addMessage(new ChatMessage(ChatMessage.Role.TOOL, result.content()));
-            observability.endSpan(toolSpan, TokenUsage.empty());
         }
-
-        return StepResult.ongoing(response);
+        return "";
     }
+
+    /**
+     * Result of a ReAct loop execution.
+     */
+    public record ReActResult(
+            String content,
+            List<ChatMessage> conversation,
+            TokenUsage tokenUsage,
+            int steps,
+            long latencyMs
+    ) {}
 }

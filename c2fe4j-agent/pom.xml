@@ -7,21 +7,17 @@
     <parent>
         <groupId>io.github.icecloudz</groupId>
         <artifactId>c2fe4j</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>0.2.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>c2fe4j-agent</artifactId>
     <name>c2fe4j-agent</name>
-    <description>Agent framework: ReAct loop, Semantic Router, multi-agent orchestration</description>
+    <description>C²FE Agent patterns: DomainAgent, RouterAgent, ReAct loop, Semantic Router, Memory</description>
 
     <dependencies>
         <dependency>
-            <groupId>io.github.icecloudz</groupId>
-            <artifactId>c2fe4j-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.github.icecloudz</groupId>
-            <artifactId>c2fe4j-openai</artifactId>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j</artifactId>
         </dependency>
         <dependency>
             <groupId>io.github.icecloudz</groupId>

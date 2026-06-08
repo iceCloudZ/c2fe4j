@@ -11,9 +11,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  *     base-url: https://api.deepseek.com
  *     api-key: sk-xxx
  *     model: deepseek-chat
+ *     timeout-seconds: 30
+ *     max-retries: 3
  *   agent:
  *     max-steps: 10
  *     system-prompt: "You are a helpful assistant."
+ *   observability:
+ *     enabled: true
+ *     trace-retention: 1000
  * </pre>
  */
 @ConfigurationProperties(prefix = "c2fe4j")
@@ -29,10 +34,12 @@ public record C2fe4jProperties(
     public record LlmConfig(
             String baseUrl,
             String apiKey,
-            String model
+            String model,
+            int timeoutSeconds,
+            int maxRetries
     ) {
         public LlmConfig() {
-            this("https://api.deepseek.com", "", "deepseek-chat");
+            this("https://api.deepseek.com", "", "deepseek-chat", 30, 3);
         }
     }
 

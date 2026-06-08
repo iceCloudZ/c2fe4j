@@ -7,18 +7,14 @@
     <parent>
         <groupId>io.github.icecloudz</groupId>
         <artifactId>c2fe4j</artifactId>
-        <version>0.1.0-SNAPSHOT</version>
+        <version>0.2.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>c2fe4j-observability</artifactId>
     <name>c2fe4j-observability</name>
-    <description>Token tracking, latency stats, trace/spans, cost calculation</description>
+    <description>Token tracking, latency stats, trace/spans for C²FE agents</description>
 
     <dependencies>
-        <dependency>
-            <groupId>io.github.icecloudz</groupId>
-            <artifactId>c2fe4j-core</artifactId>
-        </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>

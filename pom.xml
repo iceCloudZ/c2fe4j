@@ -12,14 +12,12 @@
 
     <groupId>io.github.icecloudz</groupId>
     <artifactId>c2fe4j</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.2.0-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>c2fe4j</name>
-    <description>Context &amp; Cognitive-First Engineering for Java — AI Agent toolkit</description>
+    <description>C²FE Agent Pattern Library — Context &amp; Cognitive-First Engineering for Java</description>
 
     <modules>
-        <module>c2fe4j-core</module>
-        <module>c2fe4j-openai</module>
         <module>c2fe4j-agent</module>
         <module>c2fe4j-observability</module>
         <module>c2fe4j-spring-boot-starter</module>
@@ -27,20 +25,18 @@
 
     <properties>
         <java.version>25</java.version>
+        <langchain4j.version>1.16.0</langchain4j.version>
         <lombok.version>1.18.46</lombok.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>io.github.icecloudz</groupId>
-                <artifactId>c2fe4j-core</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>io.github.icecloudz</groupId>
-                <artifactId>c2fe4j-openai</artifactId>
-                <version>${project.version}</version>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-bom</artifactId>
+                <version>${langchain4j.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
             <dependency>
                 <groupId>io.github.icecloudz</groupId>
